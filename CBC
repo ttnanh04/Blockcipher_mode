@@ -1,0 +1,87 @@
+#include <stdio.h>
+#include <string.h>
+
+void add_padding(unsigned char *data, int *len, int block_size) {
+    int pad_len = block_size - (*len % block_size);
+    for (int i = 0; i < pad_len; i++) {
+        data[*len + i] = pad_len;
+    }
+    *len += pad_len;
+}
+
+void remove_padding(unsigned char *data, int *len) {
+    int pad_len = data[*len - 1];
+    *len -= pad_len;
+}
+
+void xor_block(const unsigned char *a, const unsigned char *b, unsigned char *out, int block_size) {
+    for (int i = 0; i < block_size; i++) {
+        out[i] = a[i] ^ b[i];
+    }
+}
+
+void cbc_encrypt(const unsigned char *key, const unsigned char *iv,
+                 unsigned char *input, int input_len,
+                 unsigned char *output, int block_size) {
+
+    int padded_len = input_len;
+    add_padding(input, &padded_len, block_size);
+
+    unsigned char prev_block[64];
+    memcpy(prev_block, iv, block_size);
+
+    int num_blocks = padded_len / block_size;
+    for (int i = 0; i < num_blocks; i++) {
+        unsigned char temp[64];
+        xor_block(input + i * block_size, prev_block, temp, block_size);
+        xor_block(temp, key, output + i * block_size, block_size);  
+        memcpy(prev_block, output + i * block_size, block_size);
+    }
+}
+
+int cbc_decrypt(const unsigned char *key, const unsigned char *iv,
+                unsigned char *input, int input_len,
+                unsigned char *output, int block_size) {
+
+    unsigned char prev_block[64];
+    memcpy(prev_block, iv, block_size);
+
+    int num_blocks = input_len / block_size;
+    for (int i = 0; i < num_blocks; i++) {
+        unsigned char temp[64];
+        xor_block(input + i * block_size, key, temp, block_size);
+        xor_block(temp, prev_block, output + i * block_size, block_size);
+        memcpy(prev_block, input + i * block_size, block_size);
+    }
+
+    int plain_len = input_len;
+    remove_padding(output, &plain_len);
+    return plain_len;
+}
+
+int main(void) {
+    unsigned char key[] = "ABCDEFGHIJKLMNOP";
+    unsigned char iv[]  = "1234567890ABCDEF";
+    unsigned char text[] = "Hello, Blockcipher !";
+    int block_size = 16;
+
+    unsigned char encrypted[256];
+    unsigned char decrypted[256];
+
+    int plain_len = strlen((char*)text);
+    cbc_encrypt(key, iv, text, plain_len, encrypted, block_size);
+
+    printf("Ciphertext (CBC): ");
+    int padded_len = plain_len + (block_size - plain_len % block_size);
+    for (int i = 0; i < padded_len; i++) {
+        printf("%02X", encrypted[i]);
+    }
+    printf("\n");
+
+    int decrypted_len = cbc_decrypt(key, iv, encrypted, padded_len, decrypted, block_size);
+    decrypted[decrypted_len] = '\0';
+
+    printf("Decrypted text: %s\n", decrypted);
+
+    return 0;
+}

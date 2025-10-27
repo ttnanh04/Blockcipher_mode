@@ -1,0 +1,66 @@
+#include <stdio.h>
+#include <string.h>
+
+void add_padding(unsigned char *data, int *len, int block_size) {
+    int pad_len = block_size - (*len % block_size);
+    for (int i = 0; i < pad_len; i++) {
+        data[*len + i] = pad_len;
+    }
+    *len += pad_len;
+}
+
+void remove_padding(unsigned char *data, int *len) {
+    int pad_len = data[*len - 1];
+    *len -= pad_len;
+}
+
+void xor_block(const unsigned char *a, const unsigned char *b, unsigned char *out, int block_size) {
+    for (int i = 0; i < block_size; i++) {
+        out[i] = a[i] ^ b[i];
+    }
+}
+
+void ecb_encrypt(const unsigned char *key, unsigned char *input, int input_len, unsigned char *output, int block_size) {
+    int padded_len = input_len;
+    add_padding(input, &padded_len, block_size);
+
+    int num_blocks = padded_len / block_size;
+    for (int i = 0; i < num_blocks; i++) {
+        xor_block(input + i * block_size, key, output + i * block_size, block_size);
+    }
+}
+
+int ecb_decrypt(const unsigned char *key, unsigned char *input, int input_len, unsigned char *output, int block_size) {
+    int num_blocks = input_len / block_size;
+    for (int i = 0; i < num_blocks; i++) {
+        xor_block(input + i * block_size, key, output + i * block_size, block_size);
+    }
+    int plain_len = input_len;
+    remove_padding(output, &plain_len);
+    return plain_len;
+}
+
+int main(void) {
+    unsigned char key[] = "ABCDEFGHIJKLMNOP";
+    unsigned char text[] = "Hello, Tutorialspoint!";
+    int block_size = 16;
+
+    unsigned char encrypted[256];
+    unsigned char decrypted[256];
+
+    int plain_len = strlen((char*)text);
+    ecb_encrypt(key, text, plain_len, encrypted, block_size);
+
+    printf("Ciphertext: ");
+    for (int i = 0; i < plain_len + (block_size - plain_len % block_size); i++) {
+        printf("%02X", encrypted[i]);
+    }
+    printf("\n");
+
+    int decrypted_len = ecb_decrypt(key, encrypted, plain_len + (block_size - plain_len % block_size), decrypted, block_size);
+    decrypted[decrypted_len] = '\0';
+
+    printf("Decrypted text: %s\n", decrypted);
+
+    return 0;
+}
